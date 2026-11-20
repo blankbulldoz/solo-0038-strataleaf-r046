@@ -1,7 +1,7 @@
 import math
 from .codec import name
 from .errors import Conflict, InvalidDocument, NotFound
-from .mvcc import checked_revision, latest_row
+from .mvcc import checked_revision
 from .transaction import WriteBatch
 
 
@@ -39,24 +39,41 @@ class Retention:
             return {"requested": target, "floor": boundary, "removed_versions": removed,
                     "removed_commits": logs, "blocked": boundary < target}
 
+    def _expired_candidates(self, now, limit):
+        """Current, visible documents that are expired at ``now``.
+
+        Only the latest version of each key participates: a renewed document,
+        a document whose expiry was cleared, and a tombstone are not sweep
+        candidates. The snapshot revision is read inside this one read
+        transaction so the selection is self-consistent, and the selected
+        rows leave this method with their exact revisions for the
+        conditional delete. No transaction or handle lock is held by the
+        caller when this returns.
+        """
+        with self.store.read() as connection:
+            head = checked_revision(self.store)
+            return connection.execute("""SELECT v.collection,v.key,v.rev,v.expires FROM versions v
+              JOIN (SELECT collection,key,MAX(rev) AS rev FROM versions WHERE rev<=?
+                    GROUP BY collection,key) latest
+              ON v.collection=latest.collection AND v.key=latest.key AND v.rev=latest.rev
+            where v.body IS NOT NULL AND v.expires IS NOT NULL AND v.expires<=?
+              ORDER BY v.expires,v.collection,v.key LIMIT ?""", (head, now, limit)).fetchall()
+
     def sweep(self, now, limit=1000):
         if isinstance(now, bool) or not isinstance(now, (int, float)) or not math.isfinite(now):
             raise InvalidDocument("expiry sweep requires a finite timestamp")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 10000:
             raise InvalidDocument("sweep limit must be between 1 and 10000")
-        with self.store.read() as connection:
-            rows = connection.execute("""SELECT v.* FROM versions v WHERE v.body IS NOT NULL AND v.expires<=?
-              AND NOT EXISTS (SELECT 1 FROM versions n WHERE n.collection=v.collection AND n.key=v.key
-                              AND n.rev>v.rev AND n.body IS NOT NULL AND n.expires<=?)
-              ORDER BY v.expires,v.collection,v.key LIMIT ?""", (now, now, limit)).fetchall()
+        rows = self._expired_candidates(now, limit)
         if not rows:
             return {"expired": 0, "revision": None}
         batch = WriteBatch(self.store)
-        with self.store.read() as connection:
-            head = checked_revision(self.store)
-            for row in rows:
-                collection, key = row["collection"], row["key"]
-                current = latest_row(connection, collection, key, head)
-                batch.delete(collection, key, expected=current["rev"] if current is not None else 0)
+        for row in rows:
+            # The revision observed during selection is the precondition. A
+            # rewrite between selection and commit (including a still-expired
+            # rewrite or a delete-then-recreate) changes the current revision
+            # and therefore conflicts the whole batch instead of silently
+            # re-targeting a newer version.
+            batch.delete(row["collection"], row["key"], expected=row["rev"])
         result = batch.commit()
         return {"expired": result.count, "revision": result.revision}
