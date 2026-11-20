@@ -1,0 +1,6267 @@
+{
+  "task_source_schema_version": 1,
+  "cc_feedback_profile": "cc-feedback-2611",
+  "project_domain": "基础设施",
+  "project_subdirection": "数据库",
+  "supported_task_types": [
+    "功能开发",
+    "Bugfix",
+    "代码重构",
+    "功能优化",
+    "依赖升级与迁移",
+    "质量保障",
+    "项目维护",
+    "技术讨论",
+    "问题排查与诊断",
+    "部署运维",
+    "泛Agent需求"
+  ],
+  "type_coverage": {
+    "功能开发": {
+      "status": "supported",
+      "reason": "版本读取、写入和索引投影已有独立 API，可支持未实现的数据库能力。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "Bugfix": {
+      "status": "supported",
+      "reason": "用户明确要求隔离预埋 Bugfix；健康生产源码保持不变，仅在私有任务分支植入并验证回归。"
+    },
+    "代码重构": {
+      "status": "supported",
+      "reason": "写入提交、版本读取、索引与数据转移存在清晰但可重新组织的职责接口。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "功能优化": {
+      "status": "supported",
+      "reason": "完整数据库工作流可演进，保留存量版本和条件写入含义。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "依赖升级与迁移": {
+      "status": "supported",
+      "reason": "当前 sqlite3 与 JSON codec 有真实历史数据库，已在私有环境核实 APSW 和 MessagePack 目标可用。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "质量保障": {
+      "status": "supported",
+      "reason": "真实持久化、条件提交、索引与保留水位可用独立预期模型验证。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "项目维护": {
+      "status": "supported",
+      "reason": "现有格式、恢复、模式、读取及订阅边界需跨代码核对兼容文档。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "技术讨论": {
+      "status": "supported",
+      "reason": "保留水位、版本可见性、SQLite 写锁与副本目录时序产生实际设计选择。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "问题排查与诊断": {
+      "status": "supported",
+      "reason": "examples.observations 提供真实写锁超时和水位受阻的可复现场景，无预埋缺陷。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "部署运维": {
+      "status": "supported",
+      "reason": "数据库归档、WAL、只读副本和持久化恢复可在本机受控演练。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    },
+    "泛Agent需求": {
+      "status": "supported",
+      "reason": "可以用公开数据库 API 准备数据证据、迁移输入、接收包与历史关系材料。",
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/mvcc.py"
+      ]
+    }
+  },
+  "prompt_contract": {
+    "schema_version": 1,
+    "mode": "integrated",
+    "baseline_tier": "deep-task-ready",
+    "generation_scope": {
+      "mode": "all_supported"
+    },
+    "minimum_active_prompts": {
+      "功能开发": 20,
+      "代码重构": 2,
+      "功能优化": 20,
+      "依赖升级与迁移": 2,
+      "质量保障": 2,
+      "项目维护": 2,
+      "技术讨论": 2,
+      "问题排查与诊断": 2,
+      "部署运维": 2,
+      "泛Agent需求": 10
+    },
+    "minimum_anchors": {
+      "功能开发": 25,
+      "代码重构": 15,
+      "功能优化": 25,
+      "依赖升级与迁移": 15,
+      "质量保障": 15,
+      "项目维护": 15,
+      "技术讨论": 15,
+      "问题排查与诊断": 15,
+      "部署运维": 15,
+      "泛Agent需求": 15
+    },
+    "capacity_floor": {
+      "modules": 8,
+      "workflows": 10,
+      "mechanisms": 8,
+      "entities": 8,
+      "state_machines": 5,
+      "extension_seams": 12,
+      "tension_points": 10
+    }
+  },
+  "entities": [
+    {
+      "id": "collection",
+      "label": "集合",
+      "relations": [
+        "collection.owns.versions",
+        "collection.owns.indexes"
+      ],
+      "invariants": [
+        "模式代数单调且模式只约束新写入"
+      ]
+    },
+    {
+      "id": "document",
+      "label": "文档",
+      "relations": [
+        "document.has.versions"
+      ],
+      "invariants": [
+        "文档键在集合内唯一"
+      ]
+    },
+    {
+      "id": "version",
+      "label": "文档版本",
+      "relations": [
+        "version.belongs_to.commit"
+      ],
+      "invariants": [
+        "相同修订的写入共同可见"
+      ]
+    },
+    {
+      "id": "commit",
+      "label": "提交",
+      "relations": [
+        "commit.has.operations"
+      ],
+      "invariants": [
+        "写入、索引、日志一同生效"
+      ]
+    },
+    {
+      "id": "receipt",
+      "label": "请求回执",
+      "relations": [
+        "receipt.references.commit"
+      ],
+      "invariants": [
+        "同一键不得指向不同操作摘要"
+      ]
+    },
+    {
+      "id": "index",
+      "label": "索引",
+      "relations": [
+        "index.projects.document"
+      ],
+      "invariants": [
+        "当前投影与可见文档一致"
+      ]
+    },
+    {
+      "id": "pin",
+      "label": "读保留点",
+      "relations": [
+        "pin.protects.revision"
+      ],
+      "invariants": [
+        "不得回收活动保留点"
+      ]
+    },
+    {
+      "id": "consumer",
+      "label": "消费者",
+      "relations": [
+        "consumer.acknowledges.commit"
+      ],
+      "invariants": [
+        "确认单调且不得落在 floor 之前"
+      ]
+    },
+    {
+      "id": "archive",
+      "label": "数据库备份",
+      "relations": [
+        "archive.captures.database"
+      ],
+      "invariants": [
+        "发布后文件是完整 SQLite 快照"
+      ]
+    },
+    {
+      "id": "replica",
+      "label": "副本",
+      "relations": [
+        "replica.follows.database"
+      ],
+      "invariants": [
+        "同上游连续提交才能追赶"
+      ]
+    }
+  ],
+  "state_machines": [
+    {
+      "subject": "commit",
+      "states": [
+        "open",
+        "committed",
+        "aborted"
+      ],
+      "transitions": [
+        "open->committed",
+        "open->aborted"
+      ],
+      "invariants": [
+        "终态不能再次提交"
+      ]
+    },
+    {
+      "subject": "document",
+      "states": [
+        "absent",
+        "live",
+        "tombstoned"
+      ],
+      "transitions": [
+        "absent->live",
+        "live->live",
+        "live->tombstoned",
+        "tombstoned->live"
+      ],
+      "invariants": [
+        "墓碑也占有版本前置条件"
+      ]
+    },
+    {
+      "subject": "index",
+      "states": [
+        "absent",
+        "ready"
+      ],
+      "transitions": [
+        "absent->ready",
+        "ready->absent"
+      ],
+      "invariants": [
+        "失败建立不能留下部分值"
+      ]
+    },
+    {
+      "subject": "pin",
+      "states": [
+        "absent",
+        "active",
+        "released"
+      ],
+      "transitions": [
+        "absent->active",
+        "active->released"
+      ],
+      "invariants": [
+        "活动期间保护读版本"
+      ]
+    },
+    {
+      "subject": "consumer",
+      "states": [
+        "absent",
+        "registered",
+        "advanced",
+        "released"
+      ],
+      "transitions": [
+        "absent->registered",
+        "registered->advanced",
+        "advanced->advanced",
+        "registered->released",
+        "advanced->released"
+      ],
+      "invariants": [
+        "确认不可回退"
+      ]
+    },
+    {
+      "subject": "archive",
+      "states": [
+        "temporary",
+        "verified",
+        "published"
+      ],
+      "transitions": [
+        "temporary->verified",
+        "verified->published"
+      ],
+      "invariants": [
+        "已存在目标不得覆盖"
+      ]
+    },
+    {
+      "subject": "replica",
+      "states": [
+        "bootstrapped",
+        "catching_up",
+        "caught_up"
+      ],
+      "transitions": [
+        "bootstrapped->catching_up",
+        "catching_up->caught_up",
+        "caught_up->catching_up"
+      ],
+      "invariants": [
+        "主写始终拒绝"
+      ]
+    }
+  ],
+  "capability_families": [
+    {
+      "family": "版本化与审计",
+      "occupied_by": [
+        "versions",
+        "commits"
+      ],
+      "available": true
+    },
+    {
+      "family": "并发与锁",
+      "occupied_by": [
+        "Storage.atomic"
+      ],
+      "available": true
+    },
+    {
+      "family": "恢复与回滚",
+      "occupied_by": [
+        "Archives.restore"
+      ],
+      "available": true
+    },
+    {
+      "family": "导出与冻结",
+      "occupied_by": [
+        "Archives.backup",
+        "Transfer.export_lines"
+      ],
+      "available": true
+    },
+    {
+      "family": "批量事务",
+      "occupied_by": [
+        "WriteBatch.commit"
+      ],
+      "available": true
+    },
+    {
+      "family": "索引与查询",
+      "occupied_by": [
+        "QueryEngine.select"
+      ],
+      "available": true
+    },
+    {
+      "family": "保留与回收",
+      "occupied_by": [
+        "Retention.compact"
+      ],
+      "available": true
+    },
+    {
+      "family": "来源与复制",
+      "occupied_by": [
+        "Replication.apply"
+      ],
+      "available": true
+    }
+  ],
+  "extension_seams": [
+    {
+      "id": "catalog",
+      "anchor": "集合名称、当前模式与代数",
+      "entry": "Database.catalog.create",
+      "distinct_outcome": "集合模式与名称空间原子生效",
+      "mechanism": "batch_transaction"
+    },
+    {
+      "id": "schema",
+      "anchor": "字段类型、必填与 JSON 边界",
+      "entry": "Database.catalog.evolve",
+      "distinct_outcome": "扫描已存文档后提交兼容模式",
+      "mechanism": "snapshot_consistency"
+    },
+    {
+      "id": "commit",
+      "anchor": "写集合、前置版本与幂等回执",
+      "entry": "Database.batch().commit",
+      "distinct_outcome": "多集合批次共用提交版本且失败零可见",
+      "mechanism": "policy_rules"
+    },
+    {
+      "id": "snapshot",
+      "anchor": "修订水位、版本可见性与墓碑",
+      "entry": "Database.get",
+      "distinct_outcome": "固定版本读取旧文档与删除边界",
+      "mechanism": "idempotency"
+    },
+    {
+      "id": "query",
+      "anchor": "读版本固定、索引选择与分页",
+      "entry": "Database.query",
+      "distinct_outcome": "谓词过滤与游标跨写入保持同一读版本",
+      "mechanism": "delete_removal"
+    },
+    {
+      "id": "index",
+      "anchor": "索引定义与当前物化值",
+      "entry": "Database.indexes.create",
+      "distinct_outcome": "当前索引候选与完整谓词结果一致",
+      "mechanism": "versioning_audit"
+    },
+    {
+      "id": "feed",
+      "anchor": "完整变更提交与消费者位置",
+      "entry": "Database.feed.read",
+      "distinct_outcome": "完整提交交付与单调确认",
+      "mechanism": "export_freeze"
+    },
+    {
+      "id": "backup",
+      "anchor": "备份临时文件、校验与恢复身份",
+      "entry": "Database.archives.backup",
+      "distinct_outcome": "恢复文件中的版本与模式一致",
+      "mechanism": "lineage"
+    },
+    {
+      "id": "replica",
+      "anchor": "来源绑定、连续提交与目录时序",
+      "entry": "Database.replication.apply",
+      "distinct_outcome": "连续提交应用与重复包不重复写入",
+      "mechanism": "resource_lifecycle"
+    },
+    {
+      "id": "compact",
+      "anchor": "保留约束与安全水位",
+      "entry": "Database.retention.compact",
+      "distinct_outcome": "保留点与消费位置约束安全水位",
+      "mechanism": "recovery_rollback"
+    },
+    {
+      "id": "expire",
+      "anchor": "到期候选与条件删除",
+      "entry": "Database.retention.sweep",
+      "distinct_outcome": "到期文档产生显式删除提交",
+      "mechanism": "time_semantics"
+    },
+    {
+      "id": "aggregate",
+      "anchor": "筛选分组与数值口径",
+      "entry": "Database.aggregates.group",
+      "distinct_outcome": "同一历史读版本完成分组和数值计算",
+      "mechanism": "ranking_reorder"
+    },
+    {
+      "id": "patch",
+      "anchor": "对象合并及条件更新",
+      "entry": "Database.patch",
+      "distinct_outcome": "读后修改受版本前置条件保护",
+      "mechanism": "concurrency"
+    },
+    {
+      "id": "inspect",
+      "anchor": "物理完整性、逻辑索引与内容指纹",
+      "entry": "Database.diagnostics.inspect",
+      "distinct_outcome": "物理完整性与逻辑引用一致性可观察",
+      "mechanism": "batch_transaction"
+    },
+    {
+      "id": "transfer",
+      "anchor": "文档流边界与原子导入",
+      "entry": "Database.transfer.import_lines",
+      "distinct_outcome": "外部文档流验证后整批导入",
+      "mechanism": "snapshot_consistency"
+    }
+  ],
+  "tension_points": [
+    {
+      "workflow_id": "catalog",
+      "description": "集合模式与名称空间原子生效；需要协调集合名称、当前模式与代数、字段类型、必填与 JSON 边界、WAL 连接与读写边界",
+      "observable_failure": "重名拒绝"
+    },
+    {
+      "workflow_id": "schema",
+      "description": "扫描已存文档后提交兼容模式；需要协调集合名称、当前模式与代数、字段类型、必填与 JSON 边界、修订水位、版本可见性与墓碑",
+      "observable_failure": "不兼容模式拒绝"
+    },
+    {
+      "workflow_id": "commit",
+      "description": "多集合批次共用提交版本且失败零可见；需要协调写集合、前置版本与幂等回执、字段类型、必填与 JSON 边界、索引定义与当前物化值",
+      "observable_failure": "版本/唯一冲突整体回滚"
+    },
+    {
+      "workflow_id": "snapshot",
+      "description": "固定版本读取旧文档与删除边界；需要协调修订水位、版本可见性与墓碑、JSON 表示、路径与标量编码、WAL 连接与读写边界",
+      "observable_failure": "水位外读取拒绝"
+    },
+    {
+      "workflow_id": "query",
+      "description": "谓词过滤与游标跨写入保持同一读版本；需要协调读版本固定、索引选择与分页、游标签名与数据库绑定、查询表达式与类型比较",
+      "observable_failure": "外来或换谓词游标拒绝"
+    },
+    {
+      "workflow_id": "index",
+      "description": "当前索引候选与完整谓词结果一致；需要协调索引定义与当前物化值、修订水位、版本可见性与墓碑、JSON 表示、路径与标量编码",
+      "observable_failure": "现存重复值阻止唯一索引"
+    },
+    {
+      "workflow_id": "feed",
+      "description": "完整提交交付与单调确认；需要协调完整变更提交与消费者位置、修订水位、版本可见性与墓碑、WAL 连接与读写边界",
+      "observable_failure": "确认回退拒绝"
+    },
+    {
+      "workflow_id": "backup",
+      "description": "恢复文件中的版本与模式一致；需要协调备份临时文件、校验与恢复身份、WAL 连接与读写边界、物理完整性、逻辑索引与内容指纹",
+      "observable_failure": "摘要错误或目标已存在拒绝"
+    },
+    {
+      "workflow_id": "replica",
+      "description": "连续提交应用与重复包不重复写入；需要协调来源绑定、连续提交与目录时序、索引定义与当前物化值、修订水位、版本可见性与墓碑",
+      "observable_failure": "来源、缺口或校验错误拒绝"
+    },
+    {
+      "workflow_id": "compact",
+      "description": "保留点与消费位置约束安全水位；需要协调保留约束与安全水位、完整变更提交与消费者位置、修订水位、版本可见性与墓碑",
+      "observable_failure": "已回收历史拒绝读取"
+    },
+    {
+      "workflow_id": "expire",
+      "description": "到期文档产生显式删除提交；需要协调到期候选与条件删除、写集合、前置版本与幂等回执、索引定义与当前物化值",
+      "observable_failure": "到期读取后被改写则冲突拒绝整组删除"
+    },
+    {
+      "workflow_id": "aggregate",
+      "description": "同一历史读版本完成分组和数值计算；需要协调筛选分组与数值口径、查询表达式与类型比较、修订水位、版本可见性与墓碑",
+      "observable_failure": "未知集合拒绝"
+    },
+    {
+      "workflow_id": "patch",
+      "description": "读后修改受版本前置条件保护；需要协调对象合并及条件更新、修订水位、版本可见性与墓碑、写集合、前置版本与幂等回执",
+      "observable_failure": "陈旧版本拒绝"
+    },
+    {
+      "workflow_id": "inspect",
+      "description": "物理完整性与逻辑引用一致性可观察；需要协调物理完整性、逻辑索引与内容指纹、索引定义与当前物化值、修订水位、版本可见性与墓碑",
+      "observable_failure": "返回具体物理或逻辑不一致"
+    },
+    {
+      "workflow_id": "transfer",
+      "description": "外部文档流验证后整批导入；需要协调文档流边界与原子导入、写集合、前置版本与幂等回执、字段类型、必填与 JSON 边界",
+      "observable_failure": "重复键整体拒绝"
+    }
+  ],
+  "prompt_anchors": [
+    {
+      "id": "01-01",
+      "task_type": "功能开发",
+      "capability_family": "版本化与审计",
+      "subject": "跨集合引用约束",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "跨集合引用约束所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "commit"
+    },
+    {
+      "id": "01-02",
+      "task_type": "功能开发",
+      "capability_family": "并发与锁",
+      "subject": "原子递增与数组更新",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "原子递增与数组更新所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      },
+      "extension_seam_id": "patch"
+    },
+    {
+      "id": "01-03",
+      "task_type": "功能开发",
+      "capability_family": "恢复与回滚",
+      "subject": "持久命名读视图",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "持久命名读视图所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "snapshot"
+    },
+    {
+      "id": "01-04",
+      "task_type": "功能开发",
+      "capability_family": "导出与冻结",
+      "subject": "冲突分支合并",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "冲突分支合并所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "replica"
+    },
+    {
+      "id": "01-05",
+      "task_type": "功能开发",
+      "capability_family": "批量事务",
+      "subject": "事务内读写会话",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "事务内读写会话所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "commit"
+    },
+    {
+      "id": "01-06",
+      "task_type": "功能开发",
+      "capability_family": "索引与查询",
+      "subject": "范围索引",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "范围索引所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "index"
+    },
+    {
+      "id": "01-07",
+      "task_type": "功能开发",
+      "capability_family": "保留与回收",
+      "subject": "复合索引",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "复合索引所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "index"
+    },
+    {
+      "id": "01-08",
+      "task_type": "功能开发",
+      "capability_family": "来源与复制",
+      "subject": "全文检索",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "全文检索所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "query"
+    },
+    {
+      "id": "01-09",
+      "task_type": "功能开发",
+      "capability_family": "版本化与审计",
+      "subject": "集合级权限",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合级权限所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "catalog"
+    },
+    {
+      "id": "01-10",
+      "task_type": "功能开发",
+      "capability_family": "并发与锁",
+      "subject": "增量备份链",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "增量备份链所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      },
+      "extension_seam_id": "backup"
+    },
+    {
+      "id": "01-11",
+      "task_type": "功能开发",
+      "capability_family": "恢复与回滚",
+      "subject": "字段投影表达式",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "字段投影表达式所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "query"
+    },
+    {
+      "id": "01-12",
+      "task_type": "功能开发",
+      "capability_family": "导出与冻结",
+      "subject": "关联查询",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "关联查询所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "query"
+    },
+    {
+      "id": "01-13",
+      "task_type": "功能开发",
+      "capability_family": "批量事务",
+      "subject": "物化聚合",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "物化聚合所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "aggregate"
+    },
+    {
+      "id": "01-14",
+      "task_type": "功能开发",
+      "capability_family": "索引与查询",
+      "subject": "数据库分片路由",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "数据库分片路由所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "catalog"
+    },
+    {
+      "id": "01-15",
+      "task_type": "功能开发",
+      "capability_family": "保留与回收",
+      "subject": "SQL子集入口",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "SQL子集入口所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "query"
+    },
+    {
+      "id": "01-16",
+      "task_type": "功能开发",
+      "capability_family": "来源与复制",
+      "subject": "文档变更触发器",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "文档变更触发器所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "commit"
+    },
+    {
+      "id": "01-17",
+      "task_type": "功能开发",
+      "capability_family": "版本化与审计",
+      "subject": "可恢复在线索引构建",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "可恢复在线索引构建所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "index"
+    },
+    {
+      "id": "01-18",
+      "task_type": "功能开发",
+      "capability_family": "并发与锁",
+      "subject": "变更流字段级差异",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更流字段级差异所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "feed"
+    },
+    {
+      "id": "01-19",
+      "task_type": "功能开发",
+      "capability_family": "恢复与回滚",
+      "subject": "增量镜像校验",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "增量镜像校验所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "replica"
+    },
+    {
+      "id": "01-20",
+      "task_type": "功能开发",
+      "capability_family": "导出与冻结",
+      "subject": "历史差异比较",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史差异比较所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "snapshot"
+    },
+    {
+      "id": "01-21",
+      "task_type": "功能开发",
+      "capability_family": "批量事务",
+      "subject": "条件批量更新",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "条件批量更新所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "commit"
+    },
+    {
+      "id": "01-22",
+      "task_type": "功能开发",
+      "capability_family": "索引与查询",
+      "subject": "数据脱敏导出",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "数据脱敏导出所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      },
+      "extension_seam_id": "transfer"
+    },
+    {
+      "id": "01-23",
+      "task_type": "功能开发",
+      "capability_family": "保留与回收",
+      "subject": "时间窗口聚合",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "时间窗口聚合所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "aggregate"
+    },
+    {
+      "id": "01-24",
+      "task_type": "功能开发",
+      "capability_family": "来源与复制",
+      "subject": "配额准入",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "配额准入所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "commit"
+    },
+    {
+      "id": "01-25",
+      "task_type": "功能开发",
+      "capability_family": "版本化与审计",
+      "subject": "约束迁移预演",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "约束迁移预演所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      },
+      "extension_seam_id": "schema"
+    },
+    {
+      "id": "02-01",
+      "task_type": "代码重构",
+      "capability_family": "版本化与审计",
+      "subject": "集合定义的职责边界",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合定义的职责边界所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-02",
+      "task_type": "代码重构",
+      "capability_family": "并发与锁",
+      "subject": "模式演进的职责边界",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式演进的职责边界所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-03",
+      "task_type": "代码重构",
+      "capability_family": "恢复与回滚",
+      "subject": "原子写入的职责边界",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "原子写入的职责边界所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-04",
+      "task_type": "代码重构",
+      "capability_family": "导出与冻结",
+      "subject": "历史读取的职责边界",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史读取的职责边界所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-05",
+      "task_type": "代码重构",
+      "capability_family": "批量事务",
+      "subject": "稳定分页的职责边界",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "稳定分页的职责边界所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-06",
+      "task_type": "代码重构",
+      "capability_family": "索引与查询",
+      "subject": "二级索引的职责边界",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "二级索引的职责边界所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-07",
+      "task_type": "代码重构",
+      "capability_family": "保留与回收",
+      "subject": "变更订阅的职责边界",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更订阅的职责边界所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-08",
+      "task_type": "代码重构",
+      "capability_family": "来源与复制",
+      "subject": "在线备份恢复的职责边界",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "在线备份恢复的职责边界所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "02-09",
+      "task_type": "代码重构",
+      "capability_family": "版本化与审计",
+      "subject": "只读副本追赶的职责边界",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "只读副本追赶的职责边界所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-10",
+      "task_type": "代码重构",
+      "capability_family": "并发与锁",
+      "subject": "历史回收的职责边界",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "历史回收的职责边界所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-11",
+      "task_type": "代码重构",
+      "capability_family": "恢复与回滚",
+      "subject": "到期回收的职责边界",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "到期回收的职责边界所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-12",
+      "task_type": "代码重构",
+      "capability_family": "导出与冻结",
+      "subject": "分组计算的职责边界",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "分组计算的职责边界所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-13",
+      "task_type": "代码重构",
+      "capability_family": "批量事务",
+      "subject": "条件文档修改的职责边界",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "条件文档修改的职责边界所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "02-14",
+      "task_type": "代码重构",
+      "capability_family": "索引与查询",
+      "subject": "存储诊断的职责边界",
+      "state": "物理完整性、逻辑索引与内容指纹",
+      "invariant": "物理完整性与逻辑引用一致性可观察",
+      "observable": "存储诊断的职责边界所依赖的现有事实可从 Database.diagnostics.inspect 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "inspect"
+      ],
+      "source_anchors": [
+        "strataleaf/diagnostics.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/diagnostics.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "inspect",
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "02-15",
+      "task_type": "代码重构",
+      "capability_family": "保留与回收",
+      "subject": "逻辑数据转移的职责边界",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "逻辑数据转移的职责边界所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "03-01",
+      "task_type": "功能优化",
+      "capability_family": "版本化与审计",
+      "subject": "批次最终态唯一性",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "批次最终态唯一性所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-02",
+      "task_type": "功能优化",
+      "capability_family": "并发与锁",
+      "subject": "模式收紧冲突定位",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式收紧冲突定位所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-03",
+      "task_type": "功能优化",
+      "capability_family": "恢复与回滚",
+      "subject": "跨集合分页联合读取",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "跨集合分页联合读取所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-04",
+      "task_type": "功能优化",
+      "capability_family": "导出与冻结",
+      "subject": "分页按字段稳定排序",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "分页按字段稳定排序所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-05",
+      "task_type": "功能优化",
+      "capability_family": "批量事务",
+      "subject": "多索引候选合并",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "多索引候选合并所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-06",
+      "task_type": "功能优化",
+      "capability_family": "索引与查询",
+      "subject": "订阅按集合选择",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "订阅按集合选择所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-07",
+      "task_type": "功能优化",
+      "capability_family": "保留与回收",
+      "subject": "订阅批次大小协商",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "订阅批次大小协商所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-08",
+      "task_type": "功能优化",
+      "capability_family": "来源与复制",
+      "subject": "备份恢复目标替换语义",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "备份恢复目标替换语义所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "03-09",
+      "task_type": "功能优化",
+      "capability_family": "版本化与审计",
+      "subject": "副本分包追赶",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "副本分包追赶所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-10",
+      "task_type": "功能优化",
+      "capability_family": "并发与锁",
+      "subject": "回收分阶段执行",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "回收分阶段执行所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-11",
+      "task_type": "功能优化",
+      "capability_family": "恢复与回滚",
+      "subject": "过期批量公平推进",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "过期批量公平推进所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-12",
+      "task_type": "功能优化",
+      "capability_family": "导出与冻结",
+      "subject": "混合数值分组语义",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "混合数值分组语义所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-13",
+      "task_type": "功能优化",
+      "capability_family": "批量事务",
+      "subject": "补丁批量原子化",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "补丁批量原子化所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "03-14",
+      "task_type": "功能优化",
+      "capability_family": "索引与查询",
+      "subject": "导入冲突处理",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "导入冲突处理所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "03-15",
+      "task_type": "功能优化",
+      "capability_family": "保留与回收",
+      "subject": "导出分页续传",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "导出分页续传所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "03-16",
+      "task_type": "功能优化",
+      "capability_family": "来源与复制",
+      "subject": "写入冲突结果解释",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "写入冲突结果解释所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-17",
+      "task_type": "功能优化",
+      "capability_family": "版本化与审计",
+      "subject": "批次同键连续操作",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "批次同键连续操作所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-18",
+      "task_type": "功能优化",
+      "capability_family": "并发与锁",
+      "subject": "索引重建旧读共存",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "索引重建旧读共存所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-19",
+      "task_type": "功能优化",
+      "capability_family": "恢复与回滚",
+      "subject": "保留点有效期协商",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "保留点有效期协商所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-20",
+      "task_type": "功能优化",
+      "capability_family": "导出与冻结",
+      "subject": "消费者追赶切换",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "消费者追赶切换所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-21",
+      "task_type": "功能优化",
+      "capability_family": "批量事务",
+      "subject": "历史版本区间读取",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史版本区间读取所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-22",
+      "task_type": "功能优化",
+      "capability_family": "索引与查询",
+      "subject": "谓词空值缺字段语义",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "谓词空值缺字段语义所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-23",
+      "task_type": "功能优化",
+      "capability_family": "保留与回收",
+      "subject": "聚合分组缺失值",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "聚合分组缺失值所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "03-24",
+      "task_type": "功能优化",
+      "capability_family": "来源与复制",
+      "subject": "备份保留策略",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "备份保留策略所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "03-25",
+      "task_type": "功能优化",
+      "capability_family": "版本化与审计",
+      "subject": "副本提升后写入",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "副本提升后写入所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-01",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "版本化与审计",
+      "subject": "集合定义的持久化/接口兼容边界",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合定义的持久化/接口兼容边界所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-02",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "并发与锁",
+      "subject": "模式演进的持久化/接口兼容边界",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式演进的持久化/接口兼容边界所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-03",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "恢复与回滚",
+      "subject": "原子写入的持久化/接口兼容边界",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "原子写入的持久化/接口兼容边界所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-04",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "导出与冻结",
+      "subject": "历史读取的持久化/接口兼容边界",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史读取的持久化/接口兼容边界所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-05",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "批量事务",
+      "subject": "稳定分页的持久化/接口兼容边界",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "稳定分页的持久化/接口兼容边界所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-06",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "索引与查询",
+      "subject": "二级索引的持久化/接口兼容边界",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "二级索引的持久化/接口兼容边界所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-07",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "保留与回收",
+      "subject": "变更订阅的持久化/接口兼容边界",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更订阅的持久化/接口兼容边界所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-08",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "来源与复制",
+      "subject": "在线备份恢复的持久化/接口兼容边界",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "在线备份恢复的持久化/接口兼容边界所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "04-09",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "版本化与审计",
+      "subject": "只读副本追赶的持久化/接口兼容边界",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "只读副本追赶的持久化/接口兼容边界所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-10",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "并发与锁",
+      "subject": "历史回收的持久化/接口兼容边界",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "历史回收的持久化/接口兼容边界所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-11",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "恢复与回滚",
+      "subject": "到期回收的持久化/接口兼容边界",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "到期回收的持久化/接口兼容边界所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-12",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "导出与冻结",
+      "subject": "分组计算的持久化/接口兼容边界",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "分组计算的持久化/接口兼容边界所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-13",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "批量事务",
+      "subject": "条件文档修改的持久化/接口兼容边界",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "条件文档修改的持久化/接口兼容边界所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "04-14",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "索引与查询",
+      "subject": "存储诊断的持久化/接口兼容边界",
+      "state": "物理完整性、逻辑索引与内容指纹",
+      "invariant": "物理完整性与逻辑引用一致性可观察",
+      "observable": "存储诊断的持久化/接口兼容边界所依赖的现有事实可从 Database.diagnostics.inspect 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "inspect"
+      ],
+      "source_anchors": [
+        "strataleaf/diagnostics.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/diagnostics.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "inspect",
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "04-15",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "保留与回收",
+      "subject": "逻辑数据转移的持久化/接口兼容边界",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "逻辑数据转移的持久化/接口兼容边界所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "05-01",
+      "task_type": "质量保障",
+      "capability_family": "版本化与审计",
+      "subject": "集合定义的独立预期校验",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合定义的独立预期校验所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-02",
+      "task_type": "质量保障",
+      "capability_family": "并发与锁",
+      "subject": "模式演进的独立预期校验",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式演进的独立预期校验所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-03",
+      "task_type": "质量保障",
+      "capability_family": "恢复与回滚",
+      "subject": "原子写入的独立预期校验",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "原子写入的独立预期校验所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-04",
+      "task_type": "质量保障",
+      "capability_family": "导出与冻结",
+      "subject": "历史读取的独立预期校验",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史读取的独立预期校验所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-05",
+      "task_type": "质量保障",
+      "capability_family": "批量事务",
+      "subject": "稳定分页的独立预期校验",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "稳定分页的独立预期校验所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-06",
+      "task_type": "质量保障",
+      "capability_family": "索引与查询",
+      "subject": "二级索引的独立预期校验",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "二级索引的独立预期校验所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-07",
+      "task_type": "质量保障",
+      "capability_family": "保留与回收",
+      "subject": "变更订阅的独立预期校验",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更订阅的独立预期校验所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-08",
+      "task_type": "质量保障",
+      "capability_family": "来源与复制",
+      "subject": "在线备份恢复的独立预期校验",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "在线备份恢复的独立预期校验所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "05-09",
+      "task_type": "质量保障",
+      "capability_family": "版本化与审计",
+      "subject": "只读副本追赶的独立预期校验",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "只读副本追赶的独立预期校验所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-10",
+      "task_type": "质量保障",
+      "capability_family": "并发与锁",
+      "subject": "历史回收的独立预期校验",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "历史回收的独立预期校验所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-11",
+      "task_type": "质量保障",
+      "capability_family": "恢复与回滚",
+      "subject": "到期回收的独立预期校验",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "到期回收的独立预期校验所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-12",
+      "task_type": "质量保障",
+      "capability_family": "导出与冻结",
+      "subject": "分组计算的独立预期校验",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "分组计算的独立预期校验所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-13",
+      "task_type": "质量保障",
+      "capability_family": "批量事务",
+      "subject": "条件文档修改的独立预期校验",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "条件文档修改的独立预期校验所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "05-14",
+      "task_type": "质量保障",
+      "capability_family": "索引与查询",
+      "subject": "存储诊断的独立预期校验",
+      "state": "物理完整性、逻辑索引与内容指纹",
+      "invariant": "物理完整性与逻辑引用一致性可观察",
+      "observable": "存储诊断的独立预期校验所依赖的现有事实可从 Database.diagnostics.inspect 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "inspect"
+      ],
+      "source_anchors": [
+        "strataleaf/diagnostics.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/diagnostics.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "inspect",
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "05-15",
+      "task_type": "质量保障",
+      "capability_family": "保留与回收",
+      "subject": "逻辑数据转移的独立预期校验",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "逻辑数据转移的独立预期校验所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "06-01",
+      "task_type": "项目维护",
+      "capability_family": "版本化与审计",
+      "subject": "集合定义的事实交接",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合定义的事实交接所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-02",
+      "task_type": "项目维护",
+      "capability_family": "并发与锁",
+      "subject": "模式演进的事实交接",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式演进的事实交接所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-03",
+      "task_type": "项目维护",
+      "capability_family": "恢复与回滚",
+      "subject": "原子写入的事实交接",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "原子写入的事实交接所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-04",
+      "task_type": "项目维护",
+      "capability_family": "导出与冻结",
+      "subject": "历史读取的事实交接",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史读取的事实交接所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-05",
+      "task_type": "项目维护",
+      "capability_family": "批量事务",
+      "subject": "稳定分页的事实交接",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "稳定分页的事实交接所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-06",
+      "task_type": "项目维护",
+      "capability_family": "索引与查询",
+      "subject": "二级索引的事实交接",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "二级索引的事实交接所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-07",
+      "task_type": "项目维护",
+      "capability_family": "保留与回收",
+      "subject": "变更订阅的事实交接",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更订阅的事实交接所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-08",
+      "task_type": "项目维护",
+      "capability_family": "来源与复制",
+      "subject": "在线备份恢复的事实交接",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "在线备份恢复的事实交接所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "06-09",
+      "task_type": "项目维护",
+      "capability_family": "版本化与审计",
+      "subject": "只读副本追赶的事实交接",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "只读副本追赶的事实交接所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-10",
+      "task_type": "项目维护",
+      "capability_family": "并发与锁",
+      "subject": "历史回收的事实交接",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "历史回收的事实交接所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-11",
+      "task_type": "项目维护",
+      "capability_family": "恢复与回滚",
+      "subject": "到期回收的事实交接",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "到期回收的事实交接所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-12",
+      "task_type": "项目维护",
+      "capability_family": "导出与冻结",
+      "subject": "分组计算的事实交接",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "分组计算的事实交接所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-13",
+      "task_type": "项目维护",
+      "capability_family": "批量事务",
+      "subject": "条件文档修改的事实交接",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "条件文档修改的事实交接所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "06-14",
+      "task_type": "项目维护",
+      "capability_family": "索引与查询",
+      "subject": "存储诊断的事实交接",
+      "state": "物理完整性、逻辑索引与内容指纹",
+      "invariant": "物理完整性与逻辑引用一致性可观察",
+      "observable": "存储诊断的事实交接所依赖的现有事实可从 Database.diagnostics.inspect 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "inspect"
+      ],
+      "source_anchors": [
+        "strataleaf/diagnostics.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/diagnostics.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "inspect",
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "06-15",
+      "task_type": "项目维护",
+      "capability_family": "保留与回收",
+      "subject": "逻辑数据转移的事实交接",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "逻辑数据转移的事实交接所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "07-01",
+      "task_type": "技术讨论",
+      "capability_family": "版本化与审计",
+      "subject": "集合定义的可选语义权衡",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合定义的可选语义权衡所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-02",
+      "task_type": "技术讨论",
+      "capability_family": "并发与锁",
+      "subject": "模式演进的可选语义权衡",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式演进的可选语义权衡所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-03",
+      "task_type": "技术讨论",
+      "capability_family": "恢复与回滚",
+      "subject": "原子写入的可选语义权衡",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "原子写入的可选语义权衡所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-04",
+      "task_type": "技术讨论",
+      "capability_family": "导出与冻结",
+      "subject": "历史读取的可选语义权衡",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史读取的可选语义权衡所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-05",
+      "task_type": "技术讨论",
+      "capability_family": "批量事务",
+      "subject": "稳定分页的可选语义权衡",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "稳定分页的可选语义权衡所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-06",
+      "task_type": "技术讨论",
+      "capability_family": "索引与查询",
+      "subject": "二级索引的可选语义权衡",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "二级索引的可选语义权衡所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-07",
+      "task_type": "技术讨论",
+      "capability_family": "保留与回收",
+      "subject": "变更订阅的可选语义权衡",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更订阅的可选语义权衡所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-08",
+      "task_type": "技术讨论",
+      "capability_family": "来源与复制",
+      "subject": "在线备份恢复的可选语义权衡",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "在线备份恢复的可选语义权衡所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "07-09",
+      "task_type": "技术讨论",
+      "capability_family": "版本化与审计",
+      "subject": "只读副本追赶的可选语义权衡",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "只读副本追赶的可选语义权衡所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-10",
+      "task_type": "技术讨论",
+      "capability_family": "并发与锁",
+      "subject": "历史回收的可选语义权衡",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "历史回收的可选语义权衡所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-11",
+      "task_type": "技术讨论",
+      "capability_family": "恢复与回滚",
+      "subject": "到期回收的可选语义权衡",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "到期回收的可选语义权衡所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-12",
+      "task_type": "技术讨论",
+      "capability_family": "导出与冻结",
+      "subject": "分组计算的可选语义权衡",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "分组计算的可选语义权衡所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-13",
+      "task_type": "技术讨论",
+      "capability_family": "批量事务",
+      "subject": "条件文档修改的可选语义权衡",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "条件文档修改的可选语义权衡所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "07-14",
+      "task_type": "技术讨论",
+      "capability_family": "索引与查询",
+      "subject": "存储诊断的可选语义权衡",
+      "state": "物理完整性、逻辑索引与内容指纹",
+      "invariant": "物理完整性与逻辑引用一致性可观察",
+      "observable": "存储诊断的可选语义权衡所依赖的现有事实可从 Database.diagnostics.inspect 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "inspect"
+      ],
+      "source_anchors": [
+        "strataleaf/diagnostics.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/diagnostics.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "inspect",
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "07-15",
+      "task_type": "技术讨论",
+      "capability_family": "保留与回收",
+      "subject": "逻辑数据转移的可选语义权衡",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "逻辑数据转移的可选语义权衡所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "08-01",
+      "task_type": "问题排查与诊断",
+      "capability_family": "版本化与审计",
+      "subject": "集合定义的运行观测",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合定义的运行观测所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-02",
+      "task_type": "问题排查与诊断",
+      "capability_family": "并发与锁",
+      "subject": "模式演进的运行观测",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式演进的运行观测所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-03",
+      "task_type": "问题排查与诊断",
+      "capability_family": "恢复与回滚",
+      "subject": "原子写入的运行观测",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "原子写入的运行观测所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-04",
+      "task_type": "问题排查与诊断",
+      "capability_family": "导出与冻结",
+      "subject": "历史读取的运行观测",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史读取的运行观测所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-05",
+      "task_type": "问题排查与诊断",
+      "capability_family": "批量事务",
+      "subject": "稳定分页的运行观测",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "稳定分页的运行观测所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-06",
+      "task_type": "问题排查与诊断",
+      "capability_family": "索引与查询",
+      "subject": "二级索引的运行观测",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "二级索引的运行观测所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-07",
+      "task_type": "问题排查与诊断",
+      "capability_family": "保留与回收",
+      "subject": "变更订阅的运行观测",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更订阅的运行观测所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-08",
+      "task_type": "问题排查与诊断",
+      "capability_family": "来源与复制",
+      "subject": "在线备份恢复的运行观测",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "在线备份恢复的运行观测所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "08-09",
+      "task_type": "问题排查与诊断",
+      "capability_family": "版本化与审计",
+      "subject": "只读副本追赶的运行观测",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "只读副本追赶的运行观测所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-10",
+      "task_type": "问题排查与诊断",
+      "capability_family": "并发与锁",
+      "subject": "历史回收的运行观测",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "历史回收的运行观测所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-11",
+      "task_type": "问题排查与诊断",
+      "capability_family": "恢复与回滚",
+      "subject": "到期回收的运行观测",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "到期回收的运行观测所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-12",
+      "task_type": "问题排查与诊断",
+      "capability_family": "导出与冻结",
+      "subject": "分组计算的运行观测",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "分组计算的运行观测所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-13",
+      "task_type": "问题排查与诊断",
+      "capability_family": "批量事务",
+      "subject": "条件文档修改的运行观测",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "条件文档修改的运行观测所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "08-14",
+      "task_type": "问题排查与诊断",
+      "capability_family": "索引与查询",
+      "subject": "存储诊断的运行观测",
+      "state": "物理完整性、逻辑索引与内容指纹",
+      "invariant": "物理完整性与逻辑引用一致性可观察",
+      "observable": "存储诊断的运行观测所依赖的现有事实可从 Database.diagnostics.inspect 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "inspect"
+      ],
+      "source_anchors": [
+        "strataleaf/diagnostics.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/diagnostics.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "inspect",
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "08-15",
+      "task_type": "问题排查与诊断",
+      "capability_family": "保留与回收",
+      "subject": "逻辑数据转移的运行观测",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "逻辑数据转移的运行观测所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "09-01",
+      "task_type": "部署运维",
+      "capability_family": "版本化与审计",
+      "subject": "集合定义的环境生命周期",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合定义的环境生命周期所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-02",
+      "task_type": "部署运维",
+      "capability_family": "并发与锁",
+      "subject": "模式演进的环境生命周期",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式演进的环境生命周期所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-03",
+      "task_type": "部署运维",
+      "capability_family": "恢复与回滚",
+      "subject": "原子写入的环境生命周期",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "原子写入的环境生命周期所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-04",
+      "task_type": "部署运维",
+      "capability_family": "导出与冻结",
+      "subject": "历史读取的环境生命周期",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史读取的环境生命周期所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-05",
+      "task_type": "部署运维",
+      "capability_family": "批量事务",
+      "subject": "稳定分页的环境生命周期",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "稳定分页的环境生命周期所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-06",
+      "task_type": "部署运维",
+      "capability_family": "索引与查询",
+      "subject": "二级索引的环境生命周期",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "二级索引的环境生命周期所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-07",
+      "task_type": "部署运维",
+      "capability_family": "保留与回收",
+      "subject": "变更订阅的环境生命周期",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更订阅的环境生命周期所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-08",
+      "task_type": "部署运维",
+      "capability_family": "来源与复制",
+      "subject": "在线备份恢复的环境生命周期",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "在线备份恢复的环境生命周期所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "09-09",
+      "task_type": "部署运维",
+      "capability_family": "版本化与审计",
+      "subject": "只读副本追赶的环境生命周期",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "只读副本追赶的环境生命周期所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-10",
+      "task_type": "部署运维",
+      "capability_family": "并发与锁",
+      "subject": "历史回收的环境生命周期",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "历史回收的环境生命周期所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-11",
+      "task_type": "部署运维",
+      "capability_family": "恢复与回滚",
+      "subject": "到期回收的环境生命周期",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "到期回收的环境生命周期所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-12",
+      "task_type": "部署运维",
+      "capability_family": "导出与冻结",
+      "subject": "分组计算的环境生命周期",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "分组计算的环境生命周期所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-13",
+      "task_type": "部署运维",
+      "capability_family": "批量事务",
+      "subject": "条件文档修改的环境生命周期",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "条件文档修改的环境生命周期所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "09-14",
+      "task_type": "部署运维",
+      "capability_family": "索引与查询",
+      "subject": "存储诊断的环境生命周期",
+      "state": "物理完整性、逻辑索引与内容指纹",
+      "invariant": "物理完整性与逻辑引用一致性可观察",
+      "observable": "存储诊断的环境生命周期所依赖的现有事实可从 Database.diagnostics.inspect 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "inspect"
+      ],
+      "source_anchors": [
+        "strataleaf/diagnostics.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/diagnostics.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "inspect",
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "09-15",
+      "task_type": "部署运维",
+      "capability_family": "保留与回收",
+      "subject": "逻辑数据转移的环境生命周期",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "逻辑数据转移的环境生命周期所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    },
+    {
+      "id": "10-01",
+      "task_type": "泛Agent需求",
+      "capability_family": "版本化与审计",
+      "subject": "集合定义的输入输出材料",
+      "state": "集合名称、当前模式与代数",
+      "invariant": "集合模式与名称空间原子生效",
+      "observable": "集合定义的输入输出材料所依赖的现有事实可从 Database.catalog.create 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "catalog"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-02",
+      "task_type": "泛Agent需求",
+      "capability_family": "并发与锁",
+      "subject": "模式演进的输入输出材料",
+      "state": "字段类型、必填与 JSON 边界",
+      "invariant": "扫描已存文档后提交兼容模式",
+      "observable": "模式演进的输入输出材料所依赖的现有事实可从 Database.catalog.evolve 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "schema"
+      ],
+      "source_anchors": [
+        "strataleaf/catalog.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/catalog.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "normalize_schema",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-03",
+      "task_type": "泛Agent需求",
+      "capability_family": "恢复与回滚",
+      "subject": "原子写入的输入输出材料",
+      "state": "写集合、前置版本与幂等回执",
+      "invariant": "多集合批次共用提交版本且失败零可见",
+      "observable": "原子写入的输入输出材料所依赖的现有事实可从 Database.batch().commit 观察",
+      "primary_mechanism": "policy_rules",
+      "workflow_ids": [
+        "commit"
+      ],
+      "source_anchors": [
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "put",
+          "normalize_schema",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-04",
+      "task_type": "泛Agent需求",
+      "capability_family": "导出与冻结",
+      "subject": "历史读取的输入输出材料",
+      "state": "修订水位、版本可见性与墓碑",
+      "invariant": "固定版本读取旧文档与删除边界",
+      "observable": "历史读取的输入输出材料所依赖的现有事实可从 Database.get 观察",
+      "primary_mechanism": "idempotency",
+      "workflow_ids": [
+        "snapshot"
+      ],
+      "source_anchors": [
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-05",
+      "task_type": "泛Agent需求",
+      "capability_family": "批量事务",
+      "subject": "稳定分页的输入输出材料",
+      "state": "读版本固定、索引选择与分页",
+      "invariant": "谓词过滤与游标跨写入保持同一读版本",
+      "observable": "稳定分页的输入输出材料所依赖的现有事实可从 Database.query 观察",
+      "primary_mechanism": "delete_removal",
+      "workflow_ids": [
+        "query"
+      ],
+      "source_anchors": [
+        "strataleaf/query.py",
+        "strataleaf/cursors.py",
+        "strataleaf/predicates.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/query.py",
+          "strataleaf/cursors.py",
+          "strataleaf/predicates.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "select",
+          "decode_cursor",
+          "matches",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-06",
+      "task_type": "泛Agent需求",
+      "capability_family": "索引与查询",
+      "subject": "二级索引的输入输出材料",
+      "state": "索引定义与当前物化值",
+      "invariant": "当前索引候选与完整谓词结果一致",
+      "observable": "二级索引的输入输出材料所依赖的现有事实可从 Database.indexes.create 观察",
+      "primary_mechanism": "versioning_audit",
+      "workflow_ids": [
+        "index"
+      ],
+      "source_anchors": [
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-07",
+      "task_type": "泛Agent需求",
+      "capability_family": "保留与回收",
+      "subject": "变更订阅的输入输出材料",
+      "state": "完整变更提交与消费者位置",
+      "invariant": "完整提交交付与单调确认",
+      "observable": "变更订阅的输入输出材料所依赖的现有事实可从 Database.feed.read 观察",
+      "primary_mechanism": "export_freeze",
+      "workflow_ids": [
+        "feed"
+      ],
+      "source_anchors": [
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-08",
+      "task_type": "泛Agent需求",
+      "capability_family": "来源与复制",
+      "subject": "在线备份恢复的输入输出材料",
+      "state": "备份临时文件、校验与恢复身份",
+      "invariant": "恢复文件中的版本与模式一致",
+      "observable": "在线备份恢复的输入输出材料所依赖的现有事实可从 Database.archives.backup 观察",
+      "primary_mechanism": "lineage",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "strataleaf/archive.py",
+        "strataleaf/storage.py",
+        "strataleaf/diagnostics.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/archive.py",
+          "strataleaf/storage.py",
+          "strataleaf/diagnostics.py"
+        ],
+        "functions": [
+          "backup",
+          "atomic",
+          "inspect"
+        ]
+      }
+    },
+    {
+      "id": "10-09",
+      "task_type": "泛Agent需求",
+      "capability_family": "版本化与审计",
+      "subject": "只读副本追赶的输入输出材料",
+      "state": "来源绑定、连续提交与目录时序",
+      "invariant": "连续提交应用与重复包不重复写入",
+      "observable": "只读副本追赶的输入输出材料所依赖的现有事实可从 Database.replication.apply 观察",
+      "primary_mechanism": "resource_lifecycle",
+      "workflow_ids": [
+        "replica"
+      ],
+      "source_anchors": [
+        "strataleaf/replica.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/replica.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "export",
+          "create",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-10",
+      "task_type": "泛Agent需求",
+      "capability_family": "并发与锁",
+      "subject": "历史回收的输入输出材料",
+      "state": "保留约束与安全水位",
+      "invariant": "保留点与消费位置约束安全水位",
+      "observable": "历史回收的输入输出材料所依赖的现有事实可从 Database.retention.compact 观察",
+      "primary_mechanism": "recovery_rollback",
+      "workflow_ids": [
+        "compact"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/feeds.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/feeds.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "pin",
+          "read",
+          "checked_revision",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-11",
+      "task_type": "泛Agent需求",
+      "capability_family": "恢复与回滚",
+      "subject": "到期回收的输入输出材料",
+      "state": "到期候选与条件删除",
+      "invariant": "到期文档产生显式删除提交",
+      "observable": "到期回收的输入输出材料所依赖的现有事实可从 Database.retention.sweep 观察",
+      "primary_mechanism": "time_semantics",
+      "workflow_ids": [
+        "expire"
+      ],
+      "source_anchors": [
+        "strataleaf/retention.py",
+        "strataleaf/transaction.py",
+        "strataleaf/indexes.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/retention.py",
+          "strataleaf/transaction.py",
+          "strataleaf/indexes.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "sweep",
+          "put",
+          "create",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-12",
+      "task_type": "泛Agent需求",
+      "capability_family": "导出与冻结",
+      "subject": "分组计算的输入输出材料",
+      "state": "筛选分组与数值口径",
+      "invariant": "同一历史读版本完成分组和数值计算",
+      "observable": "分组计算的输入输出材料所依赖的现有事实可从 Database.aggregates.group 观察",
+      "primary_mechanism": "ranking_reorder",
+      "workflow_ids": [
+        "aggregate"
+      ],
+      "source_anchors": [
+        "strataleaf/aggregate.py",
+        "strataleaf/predicates.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/aggregate.py",
+          "strataleaf/predicates.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "group",
+          "matches",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-13",
+      "task_type": "泛Agent需求",
+      "capability_family": "批量事务",
+      "subject": "条件文档修改的输入输出材料",
+      "state": "对象合并及条件更新",
+      "invariant": "读后修改受版本前置条件保护",
+      "observable": "条件文档修改的输入输出材料所依赖的现有事实可从 Database.patch 观察",
+      "primary_mechanism": "concurrency",
+      "workflow_ids": [
+        "patch"
+      ],
+      "source_anchors": [
+        "strataleaf/patch.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/patch.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py"
+        ],
+        "functions": [
+          "merge_patch",
+          "checked_revision",
+          "put",
+          "normalize_schema"
+        ]
+      }
+    },
+    {
+      "id": "10-14",
+      "task_type": "泛Agent需求",
+      "capability_family": "索引与查询",
+      "subject": "存储诊断的输入输出材料",
+      "state": "物理完整性、逻辑索引与内容指纹",
+      "invariant": "物理完整性与逻辑引用一致性可观察",
+      "observable": "存储诊断的输入输出材料所依赖的现有事实可从 Database.diagnostics.inspect 观察",
+      "primary_mechanism": "batch_transaction",
+      "workflow_ids": [
+        "inspect"
+      ],
+      "source_anchors": [
+        "strataleaf/diagnostics.py",
+        "strataleaf/indexes.py",
+        "strataleaf/mvcc.py",
+        "strataleaf/codec.py",
+        "strataleaf/storage.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/diagnostics.py",
+          "strataleaf/indexes.py",
+          "strataleaf/mvcc.py",
+          "strataleaf/codec.py",
+          "strataleaf/storage.py"
+        ],
+        "functions": [
+          "inspect",
+          "create",
+          "checked_revision",
+          "dumps",
+          "atomic"
+        ]
+      }
+    },
+    {
+      "id": "10-15",
+      "task_type": "泛Agent需求",
+      "capability_family": "保留与回收",
+      "subject": "逻辑数据转移的输入输出材料",
+      "state": "文档流边界与原子导入",
+      "invariant": "外部文档流验证后整批导入",
+      "observable": "逻辑数据转移的输入输出材料所依赖的现有事实可从 Database.transfer.import_lines 观察",
+      "primary_mechanism": "snapshot_consistency",
+      "workflow_ids": [
+        "transfer"
+      ],
+      "source_anchors": [
+        "strataleaf/transfer.py",
+        "strataleaf/transaction.py",
+        "strataleaf/schema.py",
+        "strataleaf/mvcc.py"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "strataleaf/transfer.py",
+          "strataleaf/transaction.py",
+          "strataleaf/schema.py",
+          "strataleaf/mvcc.py"
+        ],
+        "functions": [
+          "export_lines",
+          "put",
+          "normalize_schema",
+          "checked_revision"
+        ]
+      }
+    }
+  ]
+}

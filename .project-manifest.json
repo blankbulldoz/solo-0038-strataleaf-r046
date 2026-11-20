@@ -1,0 +1,535 @@
+{
+  "name": "solo-0038-strataleaf",
+  "product": {
+    "name": "StrataLeaf",
+    "description": "供 Python 服务嵌入的版本化文档数据库；将文档模式、原子多集合写入、历史读版本、索引、变更订阅和副本追赶作为库 API 提供，持久层使用 SQLite WAL。",
+    "primary_interface": "Python 嵌入式库 API",
+    "core_workflows": [
+      "集合模式与名称空间原子生效",
+      "扫描已存文档后提交兼容模式",
+      "多集合批次共用提交版本且失败零可见",
+      "固定版本读取旧文档与删除边界",
+      "谓词过滤与游标跨写入保持同一读版本",
+      "当前索引候选与完整谓词结果一致",
+      "完整提交交付与单调确认",
+      "恢复文件中的版本与模式一致",
+      "连续提交应用与重复包不重复写入",
+      "保留点与消费位置约束安全水位",
+      "到期文档产生显式删除提交",
+      "同一历史读版本完成分组和数值计算",
+      "读后修改受版本前置条件保护",
+      "物理完整性与逻辑引用一致性可观察",
+      "外部文档流验证后整批导入"
+    ]
+  },
+  "project_shape": "backend",
+  "modules": [
+    {
+      "id": "catalog",
+      "path": "strataleaf/catalog.py",
+      "responsibility": "集合名称、当前模式与代数",
+      "owned_facts": "集合名称、当前模式与代数",
+      "consumers": [
+        "catalog",
+        "schema"
+      ]
+    },
+    {
+      "id": "schema",
+      "path": "strataleaf/schema.py",
+      "responsibility": "字段类型、必填与 JSON 边界",
+      "owned_facts": "字段类型、必填与 JSON 边界",
+      "consumers": [
+        "catalog",
+        "schema",
+        "commit",
+        "patch",
+        "transfer"
+      ]
+    },
+    {
+      "id": "commit",
+      "path": "strataleaf/transaction.py",
+      "responsibility": "写集合、前置版本与幂等回执",
+      "owned_facts": "写集合、前置版本与幂等回执",
+      "consumers": [
+        "commit",
+        "expire",
+        "patch",
+        "transfer"
+      ]
+    },
+    {
+      "id": "snapshot",
+      "path": "strataleaf/mvcc.py",
+      "responsibility": "修订水位、版本可见性与墓碑",
+      "owned_facts": "修订水位、版本可见性与墓碑",
+      "consumers": [
+        "schema",
+        "snapshot",
+        "query",
+        "index",
+        "feed",
+        "replica",
+        "compact",
+        "aggregate",
+        "patch",
+        "inspect",
+        "transfer"
+      ]
+    },
+    {
+      "id": "query",
+      "path": "strataleaf/query.py",
+      "responsibility": "读版本固定、索引选择与分页",
+      "owned_facts": "读版本固定、索引选择与分页",
+      "consumers": [
+        "query"
+      ]
+    },
+    {
+      "id": "index",
+      "path": "strataleaf/indexes.py",
+      "responsibility": "索引定义与当前物化值",
+      "owned_facts": "索引定义与当前物化值",
+      "consumers": [
+        "commit",
+        "query",
+        "index",
+        "replica",
+        "expire",
+        "inspect"
+      ]
+    },
+    {
+      "id": "feed",
+      "path": "strataleaf/feeds.py",
+      "responsibility": "完整变更提交与消费者位置",
+      "owned_facts": "完整变更提交与消费者位置",
+      "consumers": [
+        "feed",
+        "compact"
+      ]
+    },
+    {
+      "id": "backup",
+      "path": "strataleaf/archive.py",
+      "responsibility": "备份临时文件、校验与恢复身份",
+      "owned_facts": "备份临时文件、校验与恢复身份",
+      "consumers": [
+        "backup"
+      ]
+    },
+    {
+      "id": "replica",
+      "path": "strataleaf/replica.py",
+      "responsibility": "来源绑定、连续提交与目录时序",
+      "owned_facts": "来源绑定、连续提交与目录时序",
+      "consumers": [
+        "replica"
+      ]
+    },
+    {
+      "id": "compact",
+      "path": "strataleaf/retention.py",
+      "responsibility": "保留约束与安全水位",
+      "owned_facts": "保留约束与安全水位",
+      "consumers": [
+        "compact"
+      ]
+    },
+    {
+      "id": "aggregate",
+      "path": "strataleaf/aggregate.py",
+      "responsibility": "筛选分组与数值口径",
+      "owned_facts": "筛选分组与数值口径",
+      "consumers": [
+        "aggregate"
+      ]
+    },
+    {
+      "id": "patch",
+      "path": "strataleaf/patch.py",
+      "responsibility": "对象合并及条件更新",
+      "owned_facts": "对象合并及条件更新",
+      "consumers": [
+        "patch"
+      ]
+    },
+    {
+      "id": "inspect",
+      "path": "strataleaf/diagnostics.py",
+      "responsibility": "物理完整性、逻辑索引与内容指纹",
+      "owned_facts": "物理完整性、逻辑索引与内容指纹",
+      "consumers": [
+        "backup",
+        "inspect"
+      ]
+    },
+    {
+      "id": "transfer",
+      "path": "strataleaf/transfer.py",
+      "responsibility": "文档流边界与原子导入",
+      "owned_facts": "文档流边界与原子导入",
+      "consumers": [
+        "transfer"
+      ]
+    },
+    {
+      "id": "storage",
+      "path": "strataleaf/storage.py",
+      "responsibility": "WAL 连接与读写边界",
+      "owned_facts": "WAL 连接与读写边界",
+      "consumers": [
+        "catalog",
+        "schema",
+        "commit",
+        "snapshot",
+        "query",
+        "index",
+        "feed",
+        "backup",
+        "replica",
+        "compact",
+        "expire",
+        "aggregate",
+        "inspect"
+      ]
+    },
+    {
+      "id": "codec",
+      "path": "strataleaf/codec.py",
+      "responsibility": "JSON 表示、路径与标量编码",
+      "owned_facts": "JSON 表示、路径与标量编码",
+      "consumers": [
+        "snapshot",
+        "index",
+        "aggregate",
+        "inspect"
+      ]
+    },
+    {
+      "id": "predicate",
+      "path": "strataleaf/predicates.py",
+      "responsibility": "查询表达式与类型比较",
+      "owned_facts": "查询表达式与类型比较",
+      "consumers": [
+        "query",
+        "aggregate"
+      ]
+    },
+    {
+      "id": "cursor",
+      "path": "strataleaf/cursors.py",
+      "responsibility": "游标签名与数据库绑定",
+      "owned_facts": "游标签名与数据库绑定",
+      "consumers": [
+        "query"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "catalog",
+      "name": "集合定义",
+      "entry": "Database.catalog.create",
+      "module_ids": [
+        "catalog",
+        "schema",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "集合名称、当前模式与代数",
+        "形成可观察结果"
+      ],
+      "success": "集合模式与名称空间原子生效",
+      "failure": "重名拒绝",
+      "verification": "python3 -m examples.workflows catalog"
+    },
+    {
+      "id": "schema",
+      "name": "模式演进",
+      "entry": "Database.catalog.evolve",
+      "module_ids": [
+        "catalog",
+        "schema",
+        "snapshot",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "字段类型、必填与 JSON 边界",
+        "形成可观察结果"
+      ],
+      "success": "扫描已存文档后提交兼容模式",
+      "failure": "不兼容模式拒绝",
+      "verification": "python3 -m examples.workflows schema"
+    },
+    {
+      "id": "commit",
+      "name": "原子写入",
+      "entry": "Database.batch().commit",
+      "module_ids": [
+        "commit",
+        "schema",
+        "index",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "写集合、前置版本与幂等回执",
+        "形成可观察结果"
+      ],
+      "success": "多集合批次共用提交版本且失败零可见",
+      "failure": "版本/唯一冲突整体回滚",
+      "verification": "python3 -m examples.workflows commit"
+    },
+    {
+      "id": "snapshot",
+      "name": "历史读取",
+      "entry": "Database.get",
+      "module_ids": [
+        "snapshot",
+        "codec",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "修订水位、版本可见性与墓碑",
+        "形成可观察结果"
+      ],
+      "success": "固定版本读取旧文档与删除边界",
+      "failure": "水位外读取拒绝",
+      "verification": "python3 -m examples.workflows snapshot"
+    },
+    {
+      "id": "query",
+      "name": "稳定分页",
+      "entry": "Database.query",
+      "module_ids": [
+        "query",
+        "cursor",
+        "predicate",
+        "index",
+        "snapshot",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "读版本固定、索引选择与分页",
+        "形成可观察结果"
+      ],
+      "success": "谓词过滤与游标跨写入保持同一读版本",
+      "failure": "外来或换谓词游标拒绝",
+      "verification": "python3 -m examples.workflows query"
+    },
+    {
+      "id": "index",
+      "name": "二级索引",
+      "entry": "Database.indexes.create",
+      "module_ids": [
+        "index",
+        "snapshot",
+        "codec",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "索引定义与当前物化值",
+        "形成可观察结果"
+      ],
+      "success": "当前索引候选与完整谓词结果一致",
+      "failure": "现存重复值阻止唯一索引",
+      "verification": "python3 -m examples.workflows index"
+    },
+    {
+      "id": "feed",
+      "name": "变更订阅",
+      "entry": "Database.feed.read",
+      "module_ids": [
+        "feed",
+        "snapshot",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "完整变更提交与消费者位置",
+        "形成可观察结果"
+      ],
+      "success": "完整提交交付与单调确认",
+      "failure": "确认回退拒绝",
+      "verification": "python3 -m examples.workflows feed"
+    },
+    {
+      "id": "backup",
+      "name": "在线备份恢复",
+      "entry": "Database.archives.backup",
+      "module_ids": [
+        "backup",
+        "storage",
+        "inspect"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "备份临时文件、校验与恢复身份",
+        "形成可观察结果"
+      ],
+      "success": "恢复文件中的版本与模式一致",
+      "failure": "摘要错误或目标已存在拒绝",
+      "verification": "python3 -m examples.workflows backup"
+    },
+    {
+      "id": "replica",
+      "name": "只读副本追赶",
+      "entry": "Database.replication.apply",
+      "module_ids": [
+        "replica",
+        "index",
+        "snapshot",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "来源绑定、连续提交与目录时序",
+        "形成可观察结果"
+      ],
+      "success": "连续提交应用与重复包不重复写入",
+      "failure": "来源、缺口或校验错误拒绝",
+      "verification": "python3 -m examples.workflows replica"
+    },
+    {
+      "id": "compact",
+      "name": "历史回收",
+      "entry": "Database.retention.compact",
+      "module_ids": [
+        "compact",
+        "feed",
+        "snapshot",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "保留约束与安全水位",
+        "形成可观察结果"
+      ],
+      "success": "保留点与消费位置约束安全水位",
+      "failure": "已回收历史拒绝读取",
+      "verification": "python3 -m examples.workflows compact"
+    },
+    {
+      "id": "expire",
+      "name": "到期回收",
+      "entry": "Database.retention.sweep",
+      "module_ids": [
+        "compact",
+        "commit",
+        "index",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "到期候选与条件删除",
+        "形成可观察结果"
+      ],
+      "success": "到期文档产生显式删除提交",
+      "failure": "到期读取后被改写则冲突拒绝整组删除",
+      "verification": "python3 -m examples.workflows expire"
+    },
+    {
+      "id": "aggregate",
+      "name": "分组计算",
+      "entry": "Database.aggregates.group",
+      "module_ids": [
+        "aggregate",
+        "predicate",
+        "snapshot",
+        "codec",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "筛选分组与数值口径",
+        "形成可观察结果"
+      ],
+      "success": "同一历史读版本完成分组和数值计算",
+      "failure": "未知集合拒绝",
+      "verification": "python3 -m examples.workflows aggregate"
+    },
+    {
+      "id": "patch",
+      "name": "条件文档修改",
+      "entry": "Database.patch",
+      "module_ids": [
+        "patch",
+        "snapshot",
+        "commit",
+        "schema"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "对象合并及条件更新",
+        "形成可观察结果"
+      ],
+      "success": "读后修改受版本前置条件保护",
+      "failure": "陈旧版本拒绝",
+      "verification": "python3 -m examples.workflows patch"
+    },
+    {
+      "id": "inspect",
+      "name": "存储诊断",
+      "entry": "Database.diagnostics.inspect",
+      "module_ids": [
+        "inspect",
+        "index",
+        "snapshot",
+        "codec",
+        "storage"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "物理完整性、逻辑索引与内容指纹",
+        "形成可观察结果"
+      ],
+      "success": "物理完整性与逻辑引用一致性可观察",
+      "failure": "返回具体物理或逻辑不一致",
+      "verification": "python3 -m examples.workflows inspect"
+    },
+    {
+      "id": "transfer",
+      "name": "逻辑数据转移",
+      "entry": "Database.transfer.import_lines",
+      "module_ids": [
+        "transfer",
+        "commit",
+        "schema",
+        "snapshot"
+      ],
+      "steps": [
+        "输入校验与读取已有事实",
+        "文档流边界与原子导入",
+        "形成可观察结果"
+      ],
+      "success": "外部文档流验证后整批导入",
+      "failure": "重复键整体拒绝",
+      "verification": "python3 -m examples.workflows transfer"
+    }
+  ],
+  "complexity": {
+    "mechanisms": [
+      "batch_transaction",
+      "snapshot_consistency",
+      "policy_rules",
+      "idempotency",
+      "delete_removal",
+      "versioning_audit",
+      "export_freeze",
+      "lineage",
+      "resource_lifecycle",
+      "recovery_rollback",
+      "time_semantics",
+      "ranking_reorder",
+      "concurrency"
+    ]
+  }
+}

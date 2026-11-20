@@ -1,0 +1,72 @@
+{
+  "language": "Python",
+  "project_shape": "backend",
+  "source_extensions": [
+    ".py"
+  ],
+  "build_command": "python3 -m compileall -q strataleaf examples",
+  "testing": "deferred",
+  "python_requires": ">=3.11",
+  "workflow_checks": [
+    {
+      "workflow_id": "catalog",
+      "command": "python3 -m examples.workflows catalog"
+    },
+    {
+      "workflow_id": "schema",
+      "command": "python3 -m examples.workflows schema"
+    },
+    {
+      "workflow_id": "commit",
+      "command": "python3 -m examples.workflows commit"
+    },
+    {
+      "workflow_id": "snapshot",
+      "command": "python3 -m examples.workflows snapshot"
+    },
+    {
+      "workflow_id": "query",
+      "command": "python3 -m examples.workflows query"
+    },
+    {
+      "workflow_id": "index",
+      "command": "python3 -m examples.workflows index"
+    },
+    {
+      "workflow_id": "feed",
+      "command": "python3 -m examples.workflows feed"
+    },
+    {
+      "workflow_id": "backup",
+      "command": "python3 -m examples.workflows backup"
+    },
+    {
+      "workflow_id": "replica",
+      "command": "python3 -m examples.workflows replica"
+    },
+    {
+      "workflow_id": "compact",
+      "command": "python3 -m examples.workflows compact"
+    },
+    {
+      "workflow_id": "expire",
+      "command": "python3 -m examples.workflows expire"
+    },
+    {
+      "workflow_id": "aggregate",
+      "command": "python3 -m examples.workflows aggregate"
+    },
+    {
+      "workflow_id": "patch",
+      "command": "python3 -m examples.workflows patch"
+    },
+    {
+      "workflow_id": "inspect",
+      "command": "python3 -m examples.workflows inspect"
+    },
+    {
+      "workflow_id": "transfer",
+      "command": "python3 -m examples.workflows transfer"
+    }
+  ]
+}
